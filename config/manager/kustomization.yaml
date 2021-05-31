@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: registry.chanshik.dev/cronjob
-  newTag: "1"
+  newTag: "2"

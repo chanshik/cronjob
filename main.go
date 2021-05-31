@@ -31,7 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	kbatchv1 "k8s.io/api/batch/v1"
+
 	batchv1 "github.com/chanshik/cronjob/api/v1"
+	batchv2 "github.com/chanshik/cronjob/api/v2"
 	"github.com/chanshik/cronjob/controllers"
 	//+kubebuilder:scaffold:imports
 )
@@ -44,7 +47,9 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(kbatchv1.AddToScheme(scheme))
 	utilruntime.Must(batchv1.AddToScheme(scheme))
+	utilruntime.Must(batchv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -52,8 +57,11 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var certDir string
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "Directory of certification files.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -72,6 +80,7 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "f2806889.tutorial.chanshik.dev",
+		CertDir:                certDir,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -89,6 +98,11 @@ func main() {
 
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
 		if err = (&batchv1.CronJob{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "CronJob")
+			os.Exit(1)
+		}
+
+		if err = (&batchv2.CronJob{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "CronJob")
 			os.Exit(1)
 		}
